@@ -239,7 +239,7 @@ class Article(models.Model):
         
     def get_translations(self):
         #pdb.set_trace()
-        if self.translation_of == None:
+        if self.translation_of is None:
             original = self
             result = Article.objects.none()
         else:

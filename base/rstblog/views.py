@@ -60,19 +60,15 @@ def get_stats(atype):
         - arg-cat2: (int, int)     number of category2 articles (original, translated,)
         - ... '''
     
-    result = dict()
     n  = Article.objects.filter(translation_of__isnull=True, atype=atype).count()
     nt = Article.objects.filter(translation_of__isnull=False, atype=atype).count()
     langs = Article.objects.filter(atype=atype).values_list('language', flat=True)
     cats = Article.objects.filter(atype=atype).values_list('category__name', flat=True)
     sl = set(langs)
     sc = set(cats)
-    result['n'] = n
-    result['nt'] = nt
-    result['sl'] = sl
-    result['sc'] = sc
+    result = {'n': n, 'nt': nt, 'sl': sl, 'sc': sc}
     for cat in sc:
-        dcat = dict()
+        dcat = {}
         for lng in sl:
             lc = Article.objects.filter(category__name=cat, language=lng, atype=atype).count()
             dcat[lng] = lc
@@ -82,13 +78,13 @@ def get_stats(atype):
 
 def show_stats(request):
     '''return statisitcs about articles in blog'''
-    all_stats = dict()     # dict of dicts one every atype
+    all_stats = {}
     for key in list(TYPES.keys()):
         stats = get_stats(key)  # 
         all_stats[key] = stats.copy()
     data = { 'all_stats': all_stats,
              'page_id': 'rstblog:show_stats'    }
-             
+
     return render( request, 'show_stats.html', data, )
     
     
@@ -136,8 +132,8 @@ def get_file_content(p):
         with p.open(mode='rb') as f:
             content = f.read()
     else:
-        raise ValueError("File {} does not exist".format(path))
-        
+        raise ValueError(f"File {path} does not exist")
+
     return content
   
   
@@ -207,13 +203,11 @@ def get_record(dst):
     '''
     
     file_content = get_file_content(dst)
-    #pdb.set_trace()
-    result = separate(file_content.decode('utf-8'))
-    if result:
+    if result := separate(file_content.decode('utf-8')):
         attributes, content = result
         record = docinfos(attributes)
     else:
-        record = dict()
+        record = {}
     record['file'] = dst.name
     # get title
     if not record.get('title'):
@@ -243,9 +237,7 @@ def reset_article_table(request, dir=ARTICLES_DIR):
     '''clear and rebuild article table'''
     
     all = Article.objects.all()
-    hits = dict()
-    for article in all:
-        hits[article.title] = article.hit
+    hits = {article.title: article.hit for article in all}
     all.delete()
     paths = flatten(dir)
     #articles = [str(p.relative_to(ARTICLES_DIR)) for p in paths]
@@ -253,28 +245,26 @@ def reset_article_table(request, dir=ARTICLES_DIR):
     for p in paths:
         article = None
         try:
-            article = cOu_article_record(p, must_be_original='yes')
-            if article:
+            if article := cOu_article_record(p, must_be_original='yes'):
                 if hits.get(article.title):
                     article.hit = hits.get(article.title)
                     article.save()
                 count += 1
         except Exception as ex:
-            msg = 'error "{}" building record for {} article. action NOT completed'.format(ex, p.name, )
+            msg = f'error "{ex}" building record for {p.name} article. action NOT completed'
             messages.add_message(request, messages.ERROR, msg)
     for p in paths:
         article = None
         try:
-            article = cOu_article_record(p, must_be_original='no')
-            if article:
+            if article := cOu_article_record(p, must_be_original='no'):
                 if hits.get(article.title):
                     article.hit = hits.get(article.title)
                     article.save()
                 count += 1
         except Exception as ex:
-            msg = 'error "{}" building record for {} article. action NOT completed'.format(ex, p.name, )
+            msg = f'error "{ex}" building record for {p.name} article. action NOT completed'
             messages.add_message(request, messages.ERROR, msg)
-    msg = 'loaded {} articles in DB'.format( count, )
+    msg = f'loaded {count} articles in DB'
     messages.add_message(request, messages.INFO, msg)
     return redirect('rstblog:index')
 
@@ -299,10 +289,13 @@ def cOu_article_record(pth, must_be_original='ignore'):
         # if: must be original and is a translation
         #     OR: must be translation and is original
         #   BAIL OUT with None
-        if (    (must_be_original=='yes' and 'translation_of' in record)
-             or (must_be_original=='no' and not 'translation_of' in record)):
+        if (
+            (must_be_original == 'yes' and 'translation_of' in record)
+            or must_be_original == 'no'
+            and 'translation_of' not in record
+        ):
             return article
-        if 'translation_of' in record and record['translation_of'] == None:
+        if 'translation_of' in record and record['translation_of'] is None:
             raise ValueError(f'{pth} is translation of an unknown article')
         #  if the Article already exists, its fields are updated
         article, created = Article.objects.update_or_create(
@@ -333,10 +326,10 @@ def load_article(request):
                 #pdb.set_trace()
                 dst = upload_file(request, item_type='article', dirdst = Path(ARTICLES_DIR))
                 article = cOu_article_record(dst, must_be_original='ignore')
-                msg = 'article {} loaded'.format( dst.name, )
+                msg = f'article {dst.name} loaded'
                 messages.add_message(request, messages.INFO, msg)
             except Exception as ex:
-                msg = 'error "{}" while trying to load article. action NOT completed'.format(ex)
+                msg = f'error "{ex}" while trying to load article. action NOT completed'
                 messages.add_message(request, messages.ERROR, msg)
         else:
             msg = 'file missing, nothing to upload'
@@ -345,7 +338,7 @@ def load_article(request):
             return redirect('rstblog:show', slug=article.slug)
         else:
             return redirect('rstblog:index')
-        
+
     return render( request, 'load_article.html' )
 
 def article_as_html(article):
@@ -357,15 +350,14 @@ def article_as_html(article):
         adir = PAGES_DIR
     else:
         raise ValueError(f'{article.atype} is a type not supported (yet)')
-               
-        
-                                       
+
+
+
     try:
         p = adir / article.file
         infos = None
         file_content = get_file_content(p)
-        result = separate(file_content.decode('utf-8'))
-        if result:
+        if result := separate(file_content.decode('utf-8')):
             infos = docinfos(result[0])
             content = result[1][:]
         else:
@@ -490,8 +482,8 @@ def index(request, category='', atype=''):
             msg = f'category {category} unknown'
             messages.add_message(request, messages.ERROR, msg)
         articles = Article.objects.filter(translation_of__isnull=True, published=True, atype=atype, category=ctg.pk).order_by('-created')
-            
-    translations = dict()
+
+    translations = {}
     for article in articles:
         trans = article.get_translations()
         if len(trans) > 0:
@@ -500,7 +492,7 @@ def index(request, category='', atype=''):
         banner_info, banner_content = article_as_html(banner)
     else:
         banner_info, banner_content = (None, None)
-    
+
     #pdb.set_trace()
     data = { 'articles':     articles,
              'translations': translations,
@@ -554,10 +546,8 @@ def get_field(area, field):
     n0 = area.find(f':{field.lower()}:')
     if n0 != -1:
         n1 = area.find('\n', n0)
-    if (n0 != -1 and n1 != -1):
-        result = area[n0+offset:n1]
-    elif (n0 != -1 and n1 == -1):
-        result = area[n0+offset:]
+    if n0 != -1:
+        result = area[n0+offset:n1] if n1 != -1 else area[n0+offset:]
     if result:
         result = result.replace('\n', ' ')
         result = result.strip()
@@ -575,10 +565,10 @@ def rough_docinfos(content):
     note: all unknown fields are discarded'''
             
     
-    infos = dict()
+    infos = {}
     #field_names = []
     #field_bodies = []
-    
+
     tree = publish_doctree(content)
     stree = str(tree)
     # INVESTIGATE. about next 4 lines: is there a better method to handle these
@@ -589,19 +579,18 @@ def rough_docinfos(content):
     stree = stree.replace('"]', '&quot;]')   # to debug: load this one in text editor
 
     etree = ET.fromstring(stree) # line 1 col 18 errore
-    
+
     # pdb.set_trace()
     for fname in settings.RSTBLOG.get('FIELDS'):
         if fname == 'authors':
             if 'authors' in settings.RSTBLOG.get('FIELDS'):
                 authors = None
-                authors = get_field(content, 'authors')
-                if authors:
+                if authors := get_field(content, 'authors'):
                     infos['authors'] = authors
         else:
             try:
                 # _ are converted in - in xml class names
-                cname = fname[:] if not '_' in fname else fname.replace('_', '-')
+                cname = fname[:] if '_' not in fname else fname.replace('_', '-')
                 sbody = f"./docinfo/field[@classes='{ cname }']/field_body/paragraph"
                 body = etree.find(sbody).text
                 body = body.replace('\n', ' ')
@@ -609,7 +598,7 @@ def rough_docinfos(content):
                 infos[fname] = body[:]
             except:
                 pass
-                
+
     return infos
 
     
@@ -628,7 +617,7 @@ def docinfos(content):
             - in case value=='', dictionary voice is deleted'''
             
     #pdb.set_trace()
-    
+
     infos = rough_docinfos(content)
 
     # elaborate category, authors, created, modified
@@ -645,7 +634,7 @@ def docinfos(content):
         if name in settings.RSTBLOG.get('BOOL_FIELDS'):
             #pdb.set_trace()
             body = body.lower()
-            infos[name] = False if body == 'no' else True
+            infos[name] = body != 'no'
         # preelaborate authors
         if name in settings.RSTBLOG.get('LIST_FIELDS'):
             #pdb.set_trace()
@@ -676,25 +665,22 @@ def docinfos(content):
         if name == 'translation_of':
             if body != '':
                 translated = Article.objects.filter(title=body)
-                if translated.exists():
-                    infos[name] = translated[0]
-                else:
-                    infos[name] = None
+                infos[name] = translated[0] if translated.exists() else None
             else:
                 del infos[name]
-        
-        ## BEWARE: created and modified are date&time fields
-        #if name == 'created' or name == 'modified':
-        #    body = norm_dt(body)
-        #    # check https://stackoverflow.com/questions/466345/converting-string-into-datetime
-        #    body = datetime.strptime(body, '%Y-%m-%d %H:%M:%S')
-        #    # how use pytz? pytz.timezone(settings.TIME_ZONE)
-        #    #pdb.set_trace()
-        #    body = pytz.timezone(settings.TIME_ZONE).localize(body)
-        #if type(body) == str:
-        #    body = body.replace('\n', ' ')
-        #infos[name] = body
-    
+            
+            ## BEWARE: created and modified are date&time fields
+            #if name == 'created' or name == 'modified':
+            #    body = norm_dt(body)
+            #    # check https://stackoverflow.com/questions/466345/converting-string-into-datetime
+            #    body = datetime.strptime(body, '%Y-%m-%d %H:%M:%S')
+            #    # how use pytz? pytz.timezone(settings.TIME_ZONE)
+            #    #pdb.set_trace()
+            #    body = pytz.timezone(settings.TIME_ZONE).localize(body)
+            #if type(body) == str:
+            #    body = body.replace('\n', ' ')
+            #infos[name] = body
+
     return infos
 
     
@@ -710,11 +696,11 @@ def norm_dt(s):
     ret = ''
     # yyyy-mm-dd hh:mm:ss ndx:0123-56-89 12-45-78
     if len(s) >= 10 and len(s) < 19:
-        ret = s[:10] + ' 12:00:00'
+        ret = f'{s[:10]} 12:00:00'
     elif len(s) == 19:
         ret = s[:]
     else:
-        raise ValueError('{} is not acceptable as date/time'.format(s))
+        raise ValueError(f'{s} is not acceptable as date/time')
     return ret
     
 ##### OLD GLORIES
@@ -729,13 +715,12 @@ def rstcontent2html_1(p):
     return: a string,
             rise ValueError if p isn't file
     '''
-    if p.is_file():
-        # Note mode='rb'. Binary mode necessary to handle accented characters
-        with p.open(mode='rb') as f:
-            content = f.read()
-    else:
-        raise ValueError("File {} does not exist".format(path))
+    if not p.is_file():
+        raise ValueError(f"File {path} does not exist")
 
+    # Note mode='rb'. Binary mode necessary to handle accented characters
+    with p.open(mode='rb') as f:
+        content = f.read()
     extra_settings = {
         'initial_header_level': 3,
         'doctitle_xform' : 0,
