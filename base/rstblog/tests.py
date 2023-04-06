@@ -401,13 +401,10 @@ Avviare un progetto Django usando virtualenv'''
         '''def load_article(request):'''
         #activate('en')
         c = Client()
-        login = c.login(username='luciano', password='luciano1234') 
+        login = c.login(username='luciano', password='luciano1234')
         self.assertTrue(login)
-        
-        path = reverse(
-            'rstblog:load_article',
-            kwargs=dict(),
-            )
+
+        path = reverse('rstblog:load_article', kwargs={})
 
         with P_ARTICLE.open(mode='rb') as fp:
             response = c.post(path, { 'article': fp}, follow=True, )

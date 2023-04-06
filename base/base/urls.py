@@ -13,6 +13,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.conf    import settings
 from django.conf.urls.static import static
 #from django.conf.urls.i18n   import i18n_patterns
@@ -37,8 +38,14 @@ from rstblog.models import Category
 search_by_category = []
 try:
     categories = Category.objects.values_list('name', flat=True)
-    for category in categories:
-        search_by_category.append(['rstblog:index_category', category[:], 'article',])
+    search_by_category.extend(
+        [
+            'rstblog:index_category',
+            category[:],
+            'article',
+        ]
+        for category in categories
+    )
 except:
     pass
 
@@ -61,7 +68,7 @@ sitemaps= {
     #'media': MediaSitemap(['pdfs/CV_luciano_de_falco_alfano-public-20180227.pdf',]),
     'plain': PlainSitemap(['robots.txt',
                            'sitemap.xml',]),
-    
+
 }
 
 urlpatterns = [
